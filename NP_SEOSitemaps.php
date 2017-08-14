@@ -387,14 +387,12 @@ class NP_SEOSitemaps extends NucleusPlugin
             $baseURL = 'http://www.google.com/webmasters/sitemaps/ping?sitemap=';
             $utl     = $baseURL . urlencode($b_url . $siteMap);
             $url     = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
-            $fp      = @fopen($url, 'r');
-            @fclose($fp);
+            @ file_get_contents($url);
             $MobileMap = $this->getBlogOption($blog_id, 'MobileSitemap');
             if (!empty($MobileMap)) {
                 $url = $baseURL . urlencode($b_url . $MobileMap);
                 $url = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
-                $fp  = @fopen($url, 'r');
-                @fclose($fp);
+                @ file_get_contents($url);
             }
         }
 
@@ -402,14 +400,12 @@ class NP_SEOSitemaps extends NucleusPlugin
             $baseURL = 'http://www.bing.com/ping?sitemap=';
             $url     = $baseURL . urlencode($b_url . $siteMap);
             $url     = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
-            $fp      = @fopen($url, 'r');
-            @fclose($fp);
+            @ file_get_contents($url);
             $MobileMap = $this->getBlogOption($blog_id, 'MobileSitemap');
             if (!empty($MobileMap)) {
                 $url = $baseURL . urlencode($b_url . $MobileMap);
                 $url = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
-                $fp  = @fopen($url, 'r');
-                @fclose($fp);
+                @ file_get_contents($url);
             }
         }
     }
