@@ -42,6 +42,9 @@
   *  1.2    Send Sitemaps to Live! Search
   *         Cahge sitemap notification URI to yahoo.com No appid required
   *         Add priority setting options
+  *  1.2.1  Code cleanup
+  *  1.3    Remove Yahoo! and Live search settings
+  *  1.3    Send Sitemaps to Bing
   **/
 
 class NP_SEOSitemaps extends NucleusPlugin
@@ -50,7 +53,7 @@ class NP_SEOSitemaps extends NucleusPlugin
     function getName()           {return 'SearchenginesSitemapsGenerator';}
     function getAuthor()         {return 'Niels Leenheer + shizuki';}
     function getURL()            {return 'http://japan.nucleuscms.org/wiki/plugins:seositemaps';}
-    function getVersion()        {return '1.2.1';}
+    function getVersion()        {return '1.3';}
     function getDescription()    {return _G_SITEMAP_DESC;}
     function supportsFeature($k) {return $k==='SqlTablePrefix'?1:0;}
     function getEventList()      {return array('PostAddItem','PreSendContentType');}
@@ -395,8 +398,8 @@ class NP_SEOSitemaps extends NucleusPlugin
             }
         }
 
-        if ($this->getBlogOption($blog_id, 'PingYahoo') == 'yes') {    // &&
-            $baseURL = 'http://search.yahooapis.com/SiteExplorerService/V1/ping?sitemap=';
+        if ($this->getBlogOption($blog_id, 'PingBing') == 'yes') {    // &&
+            $baseURL = 'http://www.bing.com/ping?sitemap=';
             $url     = $baseURL . urlencode($b_url . $siteMap);
             $url     = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
             $fp      = @fopen($url, 'r');
@@ -409,22 +412,6 @@ class NP_SEOSitemaps extends NucleusPlugin
                 @fclose($fp);
             }
         }
-
-        if ($this->getBlogOption($blog_id, 'PingLive') == 'yes') {
-            $baseURL = 'http://webmaster.live.com/webmaster/ping.aspx?siteMap=';
-            $utl     = $baseURL . urlencode($b_url . $siteMap);
-            $url     = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
-            $fp      = @fopen($url, 'r');
-            @fclose($fp);
-            $MobileMap = $this->getBlogOption($blog_id, 'MobileSitemap');
-            if (!empty($MobileMap)) {
-                $url = $baseURL . urlencode($b_url . $MobileMap);
-                $url = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
-                $fp  = @fopen($url, 'r');
-                @fclose($fp);
-            }
-        }
-
     }
 
     function init()
@@ -443,9 +430,7 @@ class NP_SEOSitemaps extends NucleusPlugin
         $this->createOption('AllBlogMap',         _G_SITEMAP_ALLB,   'yesno', 'no');
         $this->createBlogOption('IncludeSitemap', _G_SITEMAP_INC,    'yesno', 'no');
         $this->createBlogOption('PingGoogle',     _G_SITEMAP_PING_G, 'yesno', 'yes');
-        $this->createBlogOption('PingYahoo',      _G_SITEMAP_PING_Y, 'yesno', 'yes');
-        $this->createBlogOption('PingLive',       _G_SITEMAP_PING_L, 'yesno', 'yes');
-//        $this->createBlogOption('YahooAPID',      _G_SITEMAP_YAPID,  'text',  '');
+        $this->createBlogOption('PingBing',       _G_SITEMAP_PING_B, 'yesno', 'yes');
         $this->createBlogOption('PcSitemap',      _G_SITEMAP_PCSM,   'text',  'sitemap.xml');
         $this->createBlogOption('MobileSitemap',  _G_SITEMAP_MBSM,   'text',  'msitemap.xml');
         $this->createBlogOption('blogPriority',   _G_SITEMAP_BPRI,   'text',  '10', 'datatype=numerical');
