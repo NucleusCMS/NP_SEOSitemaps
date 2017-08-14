@@ -184,26 +184,26 @@ class NP_SEOSitemaps extends NucleusPlugin
                     );
                 }
 
-                if ($mcategories) {
-                    $scatQuery  = 'SELECT * FROM %s WHERE catid = %d ORDER BY ordid';
-                    $scatQuery  = sprintf($scatQuery, sql_table('plug_multiple_categories_sub'), $cat_id);
-                    $scatResult = sql_query($scatQuery);
+                if (!$mcategories) continue;
+                
+                $scatQuery  = 'SELECT * FROM %s WHERE catid = %d ORDER BY ordid';
+                $scatQuery  = sprintf($scatQuery, sql_table('plug_multiple_categories_sub'), $cat_id);
+                $scatResult = sql_query($scatQuery);
 
-                    while ($scat = sql_fetch_array($scatResult)) {
-
-                        $scat_id = intval($scat['scatid']);
-                        $params  = array($subReq => $scat_id);
-                        $Link    = createCategoryLink($cat_id, $params);
-                        $scatLoc = $this->_prepareLink($SelfURL, $Link);
-
-                        if (end($path_arr) != 'ror.xml') {
-                            $sitemap[] = array(
-                                'loc'        => $scatLoc,
-                                'priority'   => number_format($sPriority, 1),
-                                'changefreq' => 'daily'
-                            );
-                        }
-                    }
+                while ($scat = sql_fetch_array($scatResult)) {
+                    
+                    if (end($path_arr) == 'ror.xml') continue;
+                    
+                    $scat_id = intval($scat['scatid']);
+                    $params  = array($subReq => $scat_id);
+                    $Link    = createCategoryLink($cat_id, $params);
+                    $scatLoc = $this->_prepareLink($SelfURL, $Link);
+                    
+                    $sitemap[] = array(
+                        'loc'        => $scatLoc,
+                        'priority'   => number_format($sPriority, 1),
+                        'changefreq' => 'daily'
+                    );
                 }
             }
 
@@ -213,8 +213,7 @@ class NP_SEOSitemaps extends NucleusPlugin
                         . 'WHERE iblog  = %d '
                         . 'AND   idraft = 0 '
                         . 'ORDER BY itime DESC';
-            $itemTable  = sql_table('item');
-            $itemQuery  = sprintf($itemQuery, $itemTable, $blog_id);
+            $itemQuery  = sprintf($itemQuery, sql_table('item'), $blog_id);
             $itemResult = sql_query($itemQuery);
             while ($item = sql_fetch_array($itemResult)) {
 
