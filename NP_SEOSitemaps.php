@@ -62,6 +62,18 @@ class NP_SEOSitemaps extends NucleusPlugin
     {
         global $CONF, $manager, $blogid;
 
+        if(getVar('virtualpath'))      $path = getVar('virtualpath');
+        elseif(serverVar('PATH_INFO')) $path = serverVar('PATH_INFO');
+        else return;
+        
+        $info = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $path);
+
+        $path_arr  = explode('/', $info);
+        $PcMap     = $this->getBlogOption($blogid, 'PcSitemap');
+        $MobileMap = $this->getBlogOption($blogid, 'MobileSitemap');
+        if ( end($path_arr) !== $PcMap && end($path_arr) !== 'ror.xml'
+          && (!$MobileMap || end($path_arr) !== $MobileMap) ) return;
+        
         $mcategories = $this->pluginCheck('NP_MultipleCategories');
         if ($mcategories) {
             if (method_exists($mcategories, 'getRequestName')) {
@@ -82,18 +94,6 @@ class NP_SEOSitemaps extends NucleusPlugin
 
         if (substr($BlogURL,-4)!=='.php') $BlogURL = rtrim($BlogURL,'/').'/';
 
-        if(getVar('virtualpath'))      $path = getVar('virtualpath');
-        elseif(serverVar('PATH_INFO')) $path = serverVar('PATH_INFO');
-        else return;
-        
-        $info = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $path);
-
-        $path_arr  = explode('/', $info);
-        $PcMap     = $this->getBlogOption($blogid, 'PcSitemap');
-        $MobileMap = $this->getBlogOption($blogid, 'MobileSitemap');
-        if ( end($path_arr) !== $PcMap && end($path_arr) !== 'ror.xml'
-          && (!$MobileMap || end($path_arr) !== $MobileMap) ) exit;
-        
         $sitemap = array();
         if ( $this->getOption('AllBlogMap') == 'yes'
           && $blogid == $CONF['DefaultBlog']) {
