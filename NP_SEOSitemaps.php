@@ -59,7 +59,7 @@ class NP_SEOSitemaps extends NucleusPlugin
     {
         global $CONF, $manager, $blogid;
 
-        $mcategories = $this->pluginCheck('MultipleCategories');
+        $mcategories = $this->pluginCheck('NP_MultipleCategories');
         if ($mcategories) {
             if (method_exists($mcategories, 'getRequestName')) {
                 $subReq = $mcategories->getRequestName();
@@ -67,36 +67,23 @@ class NP_SEOSitemaps extends NucleusPlugin
                 $subReq = 'subcatid';
             }
         }
-        $npUpdateTime = $this->pluginCheck('UpdateTime');
+        $npUpdateTime = $this->pluginCheck('NP_UpdateTime');
 
-        if (!$blogid) {
-            $blogid = $CONF['DefaultBlog'];
-        } else {
-            if (is_numeric($blogid)) {
-                $blogid = intval($blogid);
-            } else {
-                $blogid = intval(getBlogIDFromName($blogid));
-            }
-        }
+        if (!$blogid)               $blogid = $CONF['DefaultBlog']; 
+        elseif(is_numeric($blogid)) $blogid = intval($blogid);
+        else                        $blogid = intval(getBlogIDFromName($blogid));
 
-        $b       =& $manager->getBlog($blogid);
+        $b =& $manager->getBlog($blogid);
         $BlogURL = $b->getURL();
-        if (!$BlogURL) {
-            $BlogURL = $CONF['IndexURL'];
-        }
+        if (!$BlogURL) $BlogURL = $CONF['IndexURL'];
 
-        if ( substr($BlogURL, -1) != '/'
-          && substr($BlogURL, -4) != '.php') {
-            $BlogURL .= '/';
-        }
+        if (substr($BlogURL,-4)!=='.php') $BlogURL = rtrim($BlogURL,'/').'/';
 
-        if (getVar('virtualpath')) {
-            $info = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', getVar('virtualpath'));
-        } elseif (serverVar('PATH_INFO')) {
-            $info = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', serverVar('PATH_INFO'));
-        } else {
-            return;
-        }
+        if(getVar('virtualpath'))      $path = getVar('virtualpath');
+        elseif(serverVar('PATH_INFO')) $path = serverVar('PATH_INFO');
+        else return;
+        
+        $info = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $path);
 
         $path_arr  = explode('/', $info);
         $PcMap     = $this->getBlogOption($blogid, 'PcSitemap');
@@ -156,12 +143,9 @@ class NP_SEOSitemaps extends NucleusPlugin
                     $CONF['ItemURL']     = $SelfURL;
                     $CONF['CategoryURL'] = $SelfURL;
 
-                    if ( substr($TempURL, -1) != '/'
-                      && substr($TempURL, -4) != '.php') {
-                        $TempURL .= '/';
-                    }
+                    if (substr($TempURL, -4)!=='.php') $TempURL = rtrim($TempURL,'/').'/';
 
-                    $patternURL = '/^' . preg_replace('/\//', '\/', $BlogURL) . '/';
+                    $patternURL = '/^' . str_replace('/', '\/', $BlogURL) . '/';
 
                     if (preg_match($patternURL, $TempURL)) {
 
@@ -187,13 +171,8 @@ class NP_SEOSitemaps extends NucleusPlugin
                             );
                         }
 
-                        $catQuery  = 'SELECT * '
-                                   . 'FROM %s '
-                                   . 'WHERE cblog = %d '
-                                   . 'ORDER BY catid';
-                        $catTable  = sql_table('category');
-                        $catQuery  = sprintf($catQuery, $catTable, $blog_id);
-                        $catResult = sql_query($catQuery);
+                        $catQuery  = 'SELECT * FROM %s WHERE cblog = %d ORDER BY catid';
+                        $catResult = sql_query(sprintf($catQuery, sql_table('category'), $blog_id));
 
                         while ($cat = sql_fetch_array($catResult)) {
 
@@ -214,13 +193,8 @@ class NP_SEOSitemaps extends NucleusPlugin
                             }
 
                             if ($mcategories) {
-                                $scatQuery  = 'SELECT * '
-                                            . 'FROM %s '
-                                            . 'WHERE catid = %d '
-//                                            . 'ORDER BY scatid';
-                                            . 'ORDER BY ordid';
-                                $scatTable  = sql_table('plug_multiple_categories_sub');
-                                $scatQuery  = sprintf($scatQuery, $scatTable, $cat_id);
+                                $scatQuery  = 'SELECT * FROM %s WHERE catid = %d ORDER BY ordid';
+                                $scatQuery  = sprintf($scatQuery, sql_table('plug_multiple_categories_sub'), $cat_id);
                                 $scatResult = sql_query($scatQuery);
 
                                 while ($scat = sql_fetch_array($scatResult)) {
@@ -287,24 +261,11 @@ class NP_SEOSitemaps extends NucleusPlugin
                                 }
                             }
 
-/*                            if (time() - $itemTime < 86400 * 2) {
-                                $fq = 'hourly';
-                            } elseif (time() - $itemTime < 86400 * 14) {
-                                $fq = 'daily'; 
-                            } elseif (time() - $itemTime < 86400 * 62) {
-                                $fq = 'weekly';
-                            } else {
-                                $fq = 'monthly';
-                            }*/
-                            if ($itemTime < strtotime('-1 month')) {
-                                $fq = 'monthly';
-                            } elseif ($itemTime < strtotime('-1 week')) {
-                                $fq = 'weekly';
-                            } elseif ($itemTime < strtotime('-1 day')) {
-                                $fq = 'daily'; 
-                            } else {
-                                $fq = 'hourly';
-                            }
+                            if ($itemTime < strtotime('-1 month'))    $fq = 'monthly';
+                            elseif ($itemTime < strtotime('-1 week')) $fq = 'weekly';
+                            elseif ($itemTime < strtotime('-1 day'))  $fq = 'daily'; 
+                            else                                      $fq = 'hourly';
+                            
                             $lastmod = gmdate('Y-m-d\TH:i:s', $itemTime) . $tz;
 
                             if (end($path_arr) != 'ror.xml') {
@@ -335,9 +296,7 @@ class NP_SEOSitemaps extends NucleusPlugin
                     }
                 }
 
-                if ($CONF['URLMode'] != $URLMode) {
-                    $CONF['URLMode'] = $URLMode;
-                }
+                if ($CONF['URLMode'] != $URLMode) $CONF['URLMode'] = $URLMode;
 
             }
 
@@ -411,26 +370,20 @@ class NP_SEOSitemaps extends NucleusPlugin
 
             }
 
-            if (end($path_arr) == 'ror.xml') {
-                echo "</channel>\n</rss>\n";
-            } else {
-                echo "</urlset>\n";
-            }
-//            echo "</urlset>\n";
+            if (end($path_arr) == 'ror.xml') echo "</channel>\n</rss>\n";
+            else                             echo "</urlset>\n";
+            
             exit;
-
         }
     }
 
     function pluginCheck($pluginName)
     {
         global $manager;
-        if (!$manager->pluginInstalled('NP_' . $pluginName)) {
-            return;
-        } else {
-            $plugin =& $manager->getPlugin('NP_' . $pluginName);
-            return $plugin;
-        }
+        if (!$manager->pluginInstalled($pluginName)) return false;
+        
+        $plugin =& $manager->getPlugin($pluginName);
+        return $plugin;
     }
 
     function _prepareLink($base, $url) {
