@@ -68,11 +68,12 @@ class NP_SEOSitemaps extends NucleusPlugin
         
         $info = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $path);
 
-        $path_arr  = explode('/', $info);
         $PcMap     = $this->getBlogOption($blogid, 'PcSitemap');
         $MobileMap = $this->getBlogOption($blogid, 'MobileSitemap');
-        if ( end($path_arr) !== $PcMap && end($path_arr) !== 'ror.xml'
-          && (!$MobileMap || end($path_arr) !== $MobileMap) ) return;
+        $path_arr  = explode('/', $info);
+        $vfile_name = end($path_arr);
+        if ( $vfile_name !== $PcMap && $vfile_name !== 'ror.xml'
+          && (!$MobileMap || $vfile_name !== $MobileMap) ) return;
         
         $mcategories = $this->pluginCheck('NP_MultipleCategories');
         if ($mcategories) {
@@ -141,7 +142,7 @@ class NP_SEOSitemaps extends NucleusPlugin
 
             if (!preg_match($patternURL, $TempURL)) continue;
             
-            if (end($path_arr) == 'ror.xml') {
+            if ($vfile_name == 'ror.xml') {
                 $rorTitleURL  = $this->_prepareLink($SelfURL, $TempURL);
                 $rooTitleURL  = hsc($rooTitleURL);
                 $sitemapTitle = "     <title>ROR Sitemap for " . $rorTitleURL . "</title>\n"
@@ -172,7 +173,7 @@ class NP_SEOSitemaps extends NucleusPlugin
                 $Link   = createCategoryLink($cat_id);
                 $catLoc =$this->_prepareLink($SelfURL, $Link);
 
-                if (end($path_arr) != 'ror.xml') {
+                if ($vfile_name != 'ror.xml') {
                     $cPriority = intval($this->getCategoryOption($cat_id, 'catPriority'));
                     if ($cPriority > 10) $priority = 10;
                     $sPriority = ($cPriority - 1) / 10;
@@ -192,7 +193,7 @@ class NP_SEOSitemaps extends NucleusPlugin
 
                 while ($scat = sql_fetch_array($scatResult)) {
                     
-                    if (end($path_arr) == 'ror.xml') continue;
+                    if ($vfile_name == 'ror.xml') continue;
                     
                     $scat_id = intval($scat['scatid']);
                     $params  = array($subReq => $scat_id);
@@ -259,7 +260,7 @@ class NP_SEOSitemaps extends NucleusPlugin
                 
                 $lastmod = gmdate('Y-m-d\TH:i:s', $itemTime) . $tz;
 
-                if (end($path_arr) != 'ror.xml') {
+                if ($vfile_name != 'ror.xml') {
                     $iPriority = intval($this->getItemOption($item_id, 'itemPriority'));
                     if ($iPriority > 10) $iPriority = 10;
                     $iPriority = $iPriority / 10;
@@ -293,7 +294,7 @@ class NP_SEOSitemaps extends NucleusPlugin
 
         header ("Content-type: application/xml");
 
-        if (end($path_arr) == 'ror.xml') {
+        if ($vfile_name == 'ror.xml') {
 
         // ror sitemap feed
         $sitemapHeader ="<" . "?xml version='1.0' encoding='UTF-8'?" . ">\n\n"
@@ -315,11 +316,11 @@ class NP_SEOSitemaps extends NucleusPlugin
         }
 
         echo $sitemapHeader;
-        if (end($path_arr) == 'ror.xml') echo $sitemapTitle;
+        if ($vfile_name == 'ror.xml') echo $sitemapTitle;
 
         foreach($sitemap as $url) {
 
-            if (end($path_arr) == 'ror.xml') echo "\t<item>\n";
+            if ($vfile_name == 'ror.xml') echo "\t<item>\n";
             else                             echo "\t<url>\n";
 
             foreach($url as $key=>$value) {
@@ -328,11 +329,11 @@ class NP_SEOSitemaps extends NucleusPlugin
                 echo sprintf("\t\t<%s>%s</%s>\n", $key, $value, $key);
             }
 
-            if (end($path_arr) == 'ror.xml') echo "\t</item>\n";
+            if ($vfile_name == 'ror.xml') echo "\t</item>\n";
             else                             echo "\t</url>\n";
         }
 
-        if (end($path_arr) == 'ror.xml') echo "</channel>\n</rss>\n";
+        if ($vfile_name == 'ror.xml') echo "</channel>\n</rss>\n";
         else                             echo "</urlset>\n";
         
         exit;
