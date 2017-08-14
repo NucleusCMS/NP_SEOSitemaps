@@ -88,293 +88,252 @@ class NP_SEOSitemaps extends NucleusPlugin
         $path_arr  = explode('/', $info);
         $PcMap     = $this->getBlogOption($blogid, 'PcSitemap');
         $MobileMap = $this->getBlogOption($blogid, 'MobileSitemap');
-        if ( end($path_arr) == $PcMap
-          || end($path_arr) == 'ror.xml'
-          || (!empty($MobileMap) && end($path_arr) == $MobileMap) ) {
-            $sitemap = array();
-            if ( $this->getOption('AllBlogMap') == 'yes'
-              && $blogid == $CONF['DefaultBlog']) {
-                $blogQuery  = 'SELECT * '
-                            . 'FROM %s '
-                            . 'ORDER BY bnumber';
-                $blogQuery  = sprintf($blogQuery, sql_table('blog'));
-                $blogResult = sql_query($blogQuery);
-            } else {
-                $blogQuery   = 'SELECT * '
-                             . 'FROM %s '
-                             . 'WHERE bnumber = %d';
-                $blogQuery   = sprintf($blogQuery, sql_table('blog'), $blogid);
-                $blogResult  = sql_query($blogQuery);
-                $currentBlog = TRUE;
+        if ( end($path_arr) !== $PcMap && end($path_arr) !== 'ror.xml'
+          && (!$MobileMap || end($path_arr) !== $MobileMap) ) exit;
+        
+        $sitemap = array();
+        if ( $this->getOption('AllBlogMap') == 'yes'
+          && $blogid == $CONF['DefaultBlog']) {
+            $blogQuery  = 'SELECT * '
+                        . 'FROM %s '
+                        . 'ORDER BY bnumber';
+            $blogQuery  = sprintf($blogQuery, sql_table('blog'));
+            $blogResult = sql_query($blogQuery);
+        } else {
+            $blogQuery   = 'SELECT * '
+                         . 'FROM %s '
+                         . 'WHERE bnumber = %d';
+            $blogQuery   = sprintf($blogQuery, sql_table('blog'), $blogid);
+            $blogResult  = sql_query($blogQuery);
+            $currentBlog = TRUE;
+        }
+        
+        $URLMode = $CONF['URLMode'];
+        
+        while ($blogs = sql_fetch_array($blogResult)) {
+            $blog_id = intval($blogs['bnumber']);
+            if ($this->getBlogOption($blog_id, 'IncludeSitemap')!=='yes' && !$currentBlog) continue;
+            
+            $temp_b  =& $manager->getBlog($blog_id);
+            $TempURL =  $temp_b->getURL();
+            $SelfURL =  $TempURL;
+            
+            if (substr($TempURL, -4) == '.php') $CONF['URLMode'] = 'normal';
+
+            $usePathInfo = ($CONF['URLMode'] == 'pathinfo');
+
+            if (substr($SelfURL, -1) == '/') {
+                if ($usePathInfo)  $SelfURL = substr($SelfURL, 0, -1);
+                else               $SelfURL = $SelfURL . 'index.php';
+            } elseif (substr($SelfURL, -4) != '.php') {
+                if (!$usePathInfo) $SelfURL = $SelfURL . '/index.php';
             }
-            while ($blogs = sql_fetch_array($blogResult)) {
-                $blog_id = intval($blogs['bnumber']);
-                if (  $this->getBlogOption($blog_id, 'IncludeSitemap') == 'yes'
-                   || !empty($currentBlog)) {
-                    $temp_b  =& $manager->getBlog($blog_id);
-                    $TempURL =  $temp_b->getURL();
-                    $SelfURL =  $TempURL;
 
-                    $URLMode = $CONF['URLMode'];
-                    if (substr($TempURL, -4) == '.php') {
-                        $CONF['URLMode'] = 'normal';
-                    }
+            $CONF['ItemURL']     = $SelfURL;
+            $CONF['CategoryURL'] = $SelfURL;
 
-                    $usePathInfo = ($CONF['URLMode'] == 'pathinfo');
+            if (substr($TempURL, -4)!=='.php') $TempURL = rtrim($TempURL,'/').'/';
 
-                    if (substr($SelfURL, -1) == '/') {
+            $patternURL = '/^' . str_replace('/', '\/', $BlogURL) . '/';
 
-                        if ($usePathInfo) {
-                            $SelfURL = substr($SelfURL, 0, -1);
-                        } else {
-                            $SelfURL = $SelfURL . 'index.php';
-                        }
+            if (!preg_match($patternURL, $TempURL)) continue;
+            
+            if (end($path_arr) == 'ror.xml') {
+                $rorTitleURL  = $this->_prepareLink($SelfURL, $TempURL);
+                $rooTitleURL  = hsc($rooTitleURL);
+                $sitemapTitle = "     <title>ROR Sitemap for " . $rorTitleURL . "</title>\n"
+                              . "     <link>" . $rorTitleURL . "</link>\n"
+                              . "     <item>\n"
+                              . "     <title>ROR Sitemap for " . $rorTitleURL . "</title>\n"
+                              . "     <link>" . $rorTitleURL . "</link>\n"
+                              . "     <ror:about>sitemap</ror:about>\n"
+                              . "     <ror:type>SiteMap</ror:type>\n"
+                              . "     </item>\n";
+            } else {
+                $bPriority = intval($this->getBlogOption($blog_id, 'blogPriority'));
+                if ($bPriority > 10) $bPriority = 10;
+                $bPriority = $bPriority / 10;
+                $sitemap[] = array(
+                    'loc'        => $this->_prepareLink($SelfURL, $TempURL),
+                    'priority'   => number_format($bPriority ,1),
+                    'changefreq' => 'daily'
+                );
+            }
 
-                    } elseif (substr($SelfURL, -4) != '.php') {
+            $catQuery  = 'SELECT * FROM %s WHERE cblog = %d ORDER BY catid';
+            $catResult = sql_query(sprintf($catQuery, sql_table('category'), $blog_id));
 
-                        if ($usePathInfo) {
-                            $SelfURL = $SelfURL;
-                        } else {
-                            $SelfURL = $SelfURL . '/index.php';
-                        }
+            while ($cat = sql_fetch_array($catResult)) {
 
-                    }
+                $cat_id = intval($cat['catid']);
+                $Link   = createCategoryLink($cat_id);
+                $catLoc =$this->_prepareLink($SelfURL, $Link);
 
-                    $CONF['ItemURL']     = $SelfURL;
-                    $CONF['CategoryURL'] = $SelfURL;
+                if (end($path_arr) != 'ror.xml') {
+                    $cPriority = intval($this->getCategoryOption($cat_id, 'catPriority'));
+                    if ($cPriority > 10) $priority = 10;
+                    $sPriority = ($cPriority - 1) / 10;
+                    $cPriority  = $cPriority / 10;
+                    $sitemap[] = array(
+                        'loc'        => $catLoc,
+                        'priority'   => number_format($cPriority, 1),
+                        'changefreq' => 'daily'
+                    );
+                }
 
-                    if (substr($TempURL, -4)!=='.php') $TempURL = rtrim($TempURL,'/').'/';
+                if ($mcategories) {
+                    $scatQuery  = 'SELECT * FROM %s WHERE catid = %d ORDER BY ordid';
+                    $scatQuery  = sprintf($scatQuery, sql_table('plug_multiple_categories_sub'), $cat_id);
+                    $scatResult = sql_query($scatQuery);
 
-                    $patternURL = '/^' . str_replace('/', '\/', $BlogURL) . '/';
+                    while ($scat = sql_fetch_array($scatResult)) {
 
-                    if (preg_match($patternURL, $TempURL)) {
+                        $scat_id = intval($scat['scatid']);
+                        $params  = array($subReq => $scat_id);
+                        $Link    = createCategoryLink($cat_id, $params);
+                        $scatLoc = $this->_prepareLink($SelfURL, $Link);
 
-                        if (end($path_arr) == 'ror.xml') {
-                            $rorTitleURL  = $this->_prepareLink($SelfURL, $TempURL);
-                            $rooTitleURL  = hsc($rooTitleURL);
-                            $sitemapTitle = "     <title>ROR Sitemap for " . $rorTitleURL . "</title>\n"
-                                          . "     <link>" . $rorTitleURL . "</link>\n"
-                                          . "     <item>\n"
-                                          . "     <title>ROR Sitemap for " . $rorTitleURL . "</title>\n"
-                                          . "     <link>" . $rorTitleURL . "</link>\n"
-                                          . "     <ror:about>sitemap</ror:about>\n"
-                                          . "     <ror:type>SiteMap</ror:type>\n"
-                                          . "     </item>\n";
-                        } else {
-                            $bPriority = intval($this->getBlogOption($blog_id, 'blogPriority'));
-                            if ($bPriority > 10) $bPriority = 10;
-                            $bPriority = $bPriority / 10;
+                        if (end($path_arr) != 'ror.xml') {
                             $sitemap[] = array(
-                                'loc'        => $this->_prepareLink($SelfURL, $TempURL),
-                                'priority'   => number_format($bPriority ,1),
+                                'loc'        => $scatLoc,
+                                'priority'   => number_format($sPriority, 1),
                                 'changefreq' => 'daily'
                             );
                         }
+                    }
+                }
+            }
 
-                        $catQuery  = 'SELECT * FROM %s WHERE cblog = %d ORDER BY catid';
-                        $catResult = sql_query(sprintf($catQuery, sql_table('category'), $blog_id));
+            $itemQuery  = 'SELECT *, '
+                        . '       UNIX_TIMESTAMP(itime) AS timestamp '
+                        . 'FROM %s '
+                        . 'WHERE iblog  = %d '
+                        . 'AND   idraft = 0 '
+                        . 'ORDER BY itime DESC';
+            $itemTable  = sql_table('item');
+            $itemQuery  = sprintf($itemQuery, $itemTable, $blog_id);
+            $itemResult = sql_query($itemQuery);
+            while ($item = sql_fetch_array($itemResult)) {
 
-                        while ($cat = sql_fetch_array($catResult)) {
+                $item_id  = intval($item['inumber']);
+                $Link     = createItemLink($item_id);
+                $tz       = date('O', $item['timestamp']);
+                $tz       = substr($tz, 0, 3) . ':' . substr($tz, 3, 2);
+                $itemLoc  = $this->_prepareLink($SelfURL, $Link);
 
-                            $cat_id = intval($cat['catid']);
-                            $Link   = createCategoryLink($cat_id);
-                            $catLoc =$this->_prepareLink($SelfURL, $Link);
-
-                            if (end($path_arr) != 'ror.xml') {
-                                $cPriority = intval($this->getCategoryOption($cat_id, 'catPriority'));
-                                if ($cPriority > 10) $priority = 10;
-                                $sPriority = ($cPriority - 1) / 10;
-                                $cPriority  = $cPriority / 10;
-                                $sitemap[] = array(
-                                    'loc'        => $catLoc,
-                                    'priority'   => number_format($cPriority, 1),
-                                    'changefreq' => 'daily'
-                                );
-                            }
-
-                            if ($mcategories) {
-                                $scatQuery  = 'SELECT * FROM %s WHERE catid = %d ORDER BY ordid';
-                                $scatQuery  = sprintf($scatQuery, sql_table('plug_multiple_categories_sub'), $cat_id);
-                                $scatResult = sql_query($scatQuery);
-
-                                while ($scat = sql_fetch_array($scatResult)) {
-
-                                    $scat_id = intval($scat['scatid']);
-                                    $params  = array($subReq => $scat_id);
-                                    $Link    = createCategoryLink($cat_id, $params);
-                                    $scatLoc = $this->_prepareLink($SelfURL, $Link);
-
-                                    if (end($path_arr) != 'ror.xml') {
-                                        $sitemap[] = array(
-                                            'loc'        => $scatLoc,
-                                            'priority'   => number_format($sPriority, 1),
-                                            'changefreq' => 'daily'
-                                        );
-                                    }
-                                }
-                            }
-                        }
-
-                        $itemQuery  = 'SELECT *, '
-                                    . '       UNIX_TIMESTAMP(itime) AS timestamp '
-                                    . 'FROM %s '
-                                    . 'WHERE iblog  = %d '
-                                    . 'AND   idraft = 0 '
-                                    . 'ORDER BY itime DESC';
-                        $itemTable  = sql_table('item');
-                        $itemQuery  = sprintf($itemQuery, $itemTable, $blog_id);
-                        $itemResult = sql_query($itemQuery);
-                        while ($item = sql_fetch_array($itemResult)) {
-
-                            $item_id  = intval($item['inumber']);
-                            $Link     = createItemLink($item_id);
-                            $tz       = date('O', $item['timestamp']);
-                            $tz       = substr($tz, 0, 3) . ':' . substr($tz, 3, 2);
-                            $itemLoc  = $this->_prepareLink($SelfURL, $Link);
-
-                            $mdQuery  = 'SELECT'
-                                      . '   UNIX_TIMESTAMP(ctime) AS timestamp'
-                                      . ' FROM '
-                                      .     sql_table('comment')
-                                      . ' WHERE'
-                                      . '   citem = ' . $item_id
-                                      . ' ORDER BY'
-                                      . '   ctime DESC'
-                                      . ' LIMIT'
-                                      . '   1';
-                            $modTime  = sql_query($mdQuery);
-                            $itemTime = $item['timestamp'];
-                            if (sql_num_rows($modTime) > 0) {
-                                $lastMod  = sql_fetch_object($modTime);
-                                $itemTime = $lastMod->timestamp;
-                            } elseif ($npUpdateTime) { // NP_UpdateTime exists
-                                $mdQuery = 'SELECT'
-                                         . '   UNIX_TIMESTAMP(updatetime) AS timestamp'
-                                         . ' FROM '
-                                         .     sql_table('plugin_rectime')
-                                         . ' WHERE'
-                                         . '   up_id = ' . $item_id;
-                                $modTime = sql_query($mdQuery);
-                                if (sql_num_rows($modTime) > 0) { 
-                                    $lastMod  = sql_fetch_object($modTime);
-                                    $itemTime = $lastMod->timestamp;
-                                }
-                            }
-
-                            if ($itemTime < strtotime('-1 month'))    $fq = 'monthly';
-                            elseif ($itemTime < strtotime('-1 week')) $fq = 'weekly';
-                            elseif ($itemTime < strtotime('-1 day'))  $fq = 'daily'; 
-                            else                                      $fq = 'hourly';
-                            
-                            $lastmod = gmdate('Y-m-d\TH:i:s', $itemTime) . $tz;
-
-                            if (end($path_arr) != 'ror.xml') {
-                                $iPriority = intval($this->getItemOption($item_id, 'itemPriority'));
-                                if ($iPriority > 10) $iPriority = 10;
-                                $iPriority = $iPriority / 10;
-                                $sitemap[] = array(
-                                    'loc'        => $itemLoc,
-                                    'lastmod'    => $lastmod,
-                                    'priority'   => number_format($iPriority, 1),
-                                    'changefreq' => $fq
-                                );
-                            } else {
-                                $iTitle = $item['ititle'];
-                                if (_CHARSET != 'UTF-8') {
-                                    $iTitle = mb_conbert_encoding($iTitle, 'UTF-8', _CHARSET);
-                                }
-                                $sitemap[] = array(
-                                    'title'            => $iTitle,
-                                    'link'             => $itemLoc,
-                                    'ror:updated'      => $lastmod,
-                                    'ror:updatePeriod' => 'day',
-                                    'ror:sortOrder'    => '0',
-                                    'ror:resourceOf'   => 'sitemap',
-                                );
-                            }
-                        }
+                $mdQuery  = 'SELECT'
+                          . '   UNIX_TIMESTAMP(ctime) AS timestamp'
+                          . ' FROM '
+                          .     sql_table('comment')
+                          . ' WHERE'
+                          . '   citem = ' . $item_id
+                          . ' ORDER BY'
+                          . '   ctime DESC'
+                          . ' LIMIT'
+                          . '   1';
+                $modTime  = sql_query($mdQuery);
+                $itemTime = $item['timestamp'];
+                if (sql_num_rows($modTime) > 0) {
+                    $lastMod  = sql_fetch_object($modTime);
+                    $itemTime = $lastMod->timestamp;
+                } elseif ($npUpdateTime) { // NP_UpdateTime exists
+                    $mdQuery = 'SELECT'
+                             . '   UNIX_TIMESTAMP(updatetime) AS timestamp'
+                             . ' FROM '
+                             .     sql_table('plugin_rectime')
+                             . ' WHERE'
+                             . '   up_id = ' . $item_id;
+                    $modTime = sql_query($mdQuery);
+                    if (sql_num_rows($modTime) > 0) { 
+                        $lastMod  = sql_fetch_object($modTime);
+                        $itemTime = $lastMod->timestamp;
                     }
                 }
 
-                if ($CONF['URLMode'] != $URLMode) $CONF['URLMode'] = $URLMode;
+                if ($itemTime < strtotime('-1 month'))    $fq = 'monthly';
+                elseif ($itemTime < strtotime('-1 week')) $fq = 'weekly';
+                elseif ($itemTime < strtotime('-1 day'))  $fq = 'daily'; 
+                else                                      $fq = 'hourly';
+                
+                $lastmod = gmdate('Y-m-d\TH:i:s', $itemTime) . $tz;
 
-            }
-
-            $params = array('sitemap' => & $sitemap);
-            $manager->notify('SiteMap', $params);
-
-            header ("Content-type: application/xml");
-
-            if (end($path_arr) == 'ror.xml') {
-
-            // ror sitemap feed
-            $sitemapHeader ="<" . "?xml version='1.0' encoding='UTF-8'?" . ">\n\n"
-                           . "<!--  This file is a ROR Sitemap for describing this website to the search engines. "
-                           . "For details about the ROR format, go to www.rorweb.com.   -->\n"
-                           . '<rss version="2.0" xmlns:ror="http://rorweb.com/0.1/" >' . "\n"
-                           . "<channel>\n";
-
-            } else {
-
-            // old Google sitemap protocol ver.0.84
-//            $sitemapHeader  = "<" . "?xml version='1.0' encoding='UTF-8'?" . ">\n\n";
-//                            . "\t<urlset" . ' xmlns="http://www.google.com/schemas/sitemap/0.84"' . "\n";
-//                            . "\t" . 'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' . "\n";
-//                            . "\t" . 'xsi:schemaLocation="http://www.google.com/schemas/sitemap/0.84' . "\n";
-//                            . "\t" . '        http://www.google.com/schemas/sitemap/0.84/sitemap.xsd">' . "\n";
-
-            // new sitemap common protocol ver 0.9
-            $sitemapHeader  = "<" . "?xml version='1.0' encoding='UTF-8'?" . ">\n\n"
-                            . '<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' . "\n"
-                            . '         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9' . "\n"
-                            . '         http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd"' . "\n"
-                            . '         xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"';
-            // uncomment and edit next line when you need "example_schema"
-//            $sitemapHeader .= '         xmlns:example="http://www.example.com/schemas/example_schema"';
-            $sitemapHeader .= '>';
-
-            }
-
-            echo $sitemapHeader;
-            if (end($path_arr) == 'ror.xml') {
-                echo $sitemapTitle;
-            }
-
-            while (list(, $url) = each($sitemap)) {
-
-                if (end($path_arr) == 'ror.xml') {
-                    echo "\t<item>\n";
+                if (end($path_arr) != 'ror.xml') {
+                    $iPriority = intval($this->getItemOption($item_id, 'itemPriority'));
+                    if ($iPriority > 10) $iPriority = 10;
+                    $iPriority = $iPriority / 10;
+                    $sitemap[] = array(
+                        'loc'        => $itemLoc,
+                        'lastmod'    => $lastmod,
+                        'priority'   => number_format($iPriority, 1),
+                        'changefreq' => $fq
+                    );
                 } else {
-                    echo "\t<url>\n";
-                }
-
-                while (list($key, $value) = each($url)) {
-                    if ($key == 'loc') {
-                        $value = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $value);
-                        $data  = "\t\t<" . $key . ">"
-                               . hsc($value)
-                               . "</" . $key . ">\n";
-                    } else {
-                        $data  = "\t\t<" . $key . ">"
-                               . hsc($value)
-                               . "</" . $key . ">\n";
+                    $iTitle = $item['ititle'];
+                    if (_CHARSET != 'UTF-8') {
+                        $iTitle = mb_conbert_encoding($iTitle, 'UTF-8', _CHARSET);
                     }
-                    echo $data;
+                    $sitemap[] = array(
+                        'title'            => $iTitle,
+                        'link'             => $itemLoc,
+                        'ror:updated'      => $lastmod,
+                        'ror:updatePeriod' => 'day',
+                        'ror:sortOrder'    => '0',
+                        'ror:resourceOf'   => 'sitemap',
+                    );
                 }
-
-                if (end($path_arr) == 'ror.xml') {
-                    echo "\t</item>\n";
-                } else {
-                    echo "\t</url>\n";
-                }
-
             }
-
-            if (end($path_arr) == 'ror.xml') echo "</channel>\n</rss>\n";
-            else                             echo "</urlset>\n";
-            
-            exit;
         }
+        
+        if ($CONF['URLMode'] != $URLMode) $CONF['URLMode'] = $URLMode;
+
+        $params = array('sitemap' => & $sitemap);
+        $manager->notify('SiteMap', $params);
+
+        header ("Content-type: application/xml");
+
+        if (end($path_arr) == 'ror.xml') {
+
+        // ror sitemap feed
+        $sitemapHeader ="<" . "?xml version='1.0' encoding='UTF-8'?" . ">\n\n"
+                       . "<!--  This file is a ROR Sitemap for describing this website to the search engines. "
+                       . "For details about the ROR format, go to www.rorweb.com.   -->\n"
+                       . '<rss version="2.0" xmlns:ror="http://rorweb.com/0.1/" >' . "\n"
+                       . "<channel>\n";
+
+        } else {
+
+        // new sitemap common protocol ver 0.9
+        $sitemapHeader  = "<" . "?xml version='1.0' encoding='UTF-8'?" . ">\n\n"
+                        . '<urlset xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"' . "\n"
+                        . '         xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9' . "\n"
+                        . '         http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd"' . "\n"
+                        . '         xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"';
+        $sitemapHeader .= '>';
+
+        }
+
+        echo $sitemapHeader;
+        if (end($path_arr) == 'ror.xml') echo $sitemapTitle;
+
+        foreach($sitemap as $url) {
+
+            if (end($path_arr) == 'ror.xml') echo "\t<item>\n";
+            else                             echo "\t<url>\n";
+
+            foreach($url as $key=>$value) {
+                if ($key == 'loc') $value = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $value);
+                else               $value = hsc($value);
+                echo sprintf("\t\t<%s>%s</%s>\n", $key, $value, $key);
+            }
+
+            if (end($path_arr) == 'ror.xml') echo "\t</item>\n";
+            else                             echo "\t</url>\n";
+        }
+
+        if (end($path_arr) == 'ror.xml') echo "</channel>\n</rss>\n";
+        else                             echo "</urlset>\n";
+        
+        exit;
     }
 
     function pluginCheck($pluginName)
@@ -437,10 +396,6 @@ class NP_SEOSitemaps extends NucleusPlugin
         }
 
         if ($this->getBlogOption($blog_id, 'PingYahoo') == 'yes') {    // &&
-//            $this->getBlogOption($blog_id, 'YahooAPID') != '') {
-//            $baseURL = 'http://search.yahooapis.com/SiteExplorerService/V1/updateNotification?appid='
-//                     . $this->getBlogOption($blog_id, 'YahooAPID')
-//                     . '&url=';
             $baseURL = 'http://search.yahooapis.com/SiteExplorerService/V1/ping?sitemap=';
             $url     = $baseURL . urlencode($b_url . $siteMap);
             $url     = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
