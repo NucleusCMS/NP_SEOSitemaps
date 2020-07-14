@@ -439,8 +439,11 @@ class NP_SEOSitemaps extends NucleusPlugin {
 
         if ($this->getBlogOption($blog_id, 'PingGoogle') === 'yes') {
             $baseURL = 'http://www.google.com/webmasters/sitemaps/ping?sitemap=';
-            $utl     = $baseURL . urlencode($b_url . $siteMap);
-            $url     = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
+            $url = preg_replace(
+                '|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i'
+                , ''
+                , $baseURL . urlencode($b_url . $siteMap)
+            );
             @ file_get_contents($url);
             $MobileMap = $this->getBlogOption($blog_id, 'MobileSitemap');
             if (!empty($MobileMap)) {
