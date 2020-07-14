@@ -436,7 +436,6 @@ class NP_SEOSitemaps extends NucleusPlugin {
             }
         }
         $siteMap = $this->getBlogOption($blog_id, 'PcSitemap');
-
         if ($this->getBlogOption($blog_id, 'PingGoogle') === 'yes') {
             $baseURL = 'http://www.google.com/webmasters/sitemaps/ping?sitemap=';
             $url = preg_replace(
@@ -446,9 +445,12 @@ class NP_SEOSitemaps extends NucleusPlugin {
             );
             @ file_get_contents($url);
             $MobileMap = $this->getBlogOption($blog_id, 'MobileSitemap');
-            if (!empty($MobileMap)) {
-                $url = $baseURL . urlencode($b_url . $MobileMap);
-                $url = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
+            if ($MobileMap) {
+                $url = preg_replace(
+                    '|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i'
+                    , ''
+                    , $baseURL . urlencode($b_url . $MobileMap)
+                );
                 @ file_get_contents($url);
             }
         }
@@ -462,9 +464,12 @@ class NP_SEOSitemaps extends NucleusPlugin {
             );
             @ file_get_contents($url);
             $MobileMap = $this->getBlogOption($blog_id, 'MobileSitemap');
-            if (!empty($MobileMap)) {
-                $url = $baseURL . urlencode($b_url . $MobileMap);
-                $url = preg_replace('|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i', '', $url);
+            if ($MobileMap) {
+                $url = preg_replace(
+                    '|[^a-zA-Z0-9-~+_.?#=&;,/:@%]|i'
+                    , ''
+                    , $baseURL . urlencode($b_url . $MobileMap)
+                );
                 @ file_get_contents($url);
             }
         }
