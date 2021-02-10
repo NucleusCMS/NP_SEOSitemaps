@@ -253,75 +253,49 @@ class NP_SEOSitemaps extends NucleusPlugin {
             $itemResult = sql_query(sprintf($itemQuery, sql_table('item'), $bnumber));
             while ($item = sql_fetch_array($itemResult)) {
                 $item_id  = (int)$item['inumber'];
-                $Link     = createItemLink($item_id);
-                $tz       = date('O', $item['timestamp']);
-                $tz       = substr($tz, 0, 3) . ':' . substr($tz, 3, 2);
-                $itemLoc  = $this->_prepareLink($SelfURL, $Link);
-
-                $mdQuery  = 'SELECT'
-                    . '   UNIX_TIMESTAMP(ctime) AS timestamp'
-                    . ' FROM '
-                    .     sql_table('comment')
-                    . ' WHERE'
-                    . '   citem = ' . $item_id
-                    . ' ORDER BY'
-                    . '   ctime DESC'
-                    . ' LIMIT'
-                    . '   1';
+                $mdQuery  = sprintf(
+                    'SELECT UNIX_TIMESTAMP(ctime) AS timestamp FROM %s WHERE citem=%d ORDER BY ctime DESC LIMIT 1'
+                    , sql_table('comment')
+                    , $item_id
+                );
                 $modTime  = sql_query($mdQuery);
                 $itemTime = $item['timestamp'];
-                if (sql_num_rows($modTime) > 0) {
+                if (sql_num_rows($modTime)) {
                     $lastMod  = sql_fetch_object($modTime);
                     $itemTime = $lastMod->timestamp;
                 } elseif ($npUpdateTime) { // NP_UpdateTime exists
-                    $mdQuery = 'SELECT'
-                        . '   UNIX_TIMESTAMP(updatetime) AS timestamp'
-                        . ' FROM '
-                        .     sql_table('plugin_rectime')
-                        . ' WHERE'
-                        . '   up_id = ' . $item_id;
+                    $mdQuery = sprintf(
+                        'SELECT UNIX_TIMESTAMP(updatetime) AS timestamp FROM %s WHERE up_id=%d'
+                        , sql_table('plugin_rectime')
+                        , $item_id
+                    );
                     $modTime = sql_query($mdQuery);
-                    if (sql_num_rows($modTime) > 0) {
+                    if (sql_num_rows($modTime)) {
                         $lastMod  = sql_fetch_object($modTime);
                         $itemTime = $lastMod->timestamp;
                     }
                 }
 
-                if ($itemTime < strtotime('-1 month')) {
-                    $fq = 'monthly';
-                } elseif ($itemTime < strtotime('-1 week')) {
-                    $fq = 'weekly';
-                } elseif ($itemTime < strtotime('-1 day')) {
-                    $fq = 'daily';
-                } else {
-                    $fq = 'hourly';
-                }
-
-                $lastmod = gmdate('Y-m-d\TH:i:s', $itemTime) . $tz;
-
-                if ($vfile_name !== 'ror.xml') {
-                    $iPriority = (int)$this->getItemOption($item_id, 'itemPriority');
-                    if ($iPriority > 10) $iPriority = 10;
-                    $iPriority = $iPriority / 10;
+                if ($vfile_name === 'ror.xml') {
                     $sitemap[] = array(
-                        'loc'        => $itemLoc,
-                        'lastmod'    => $lastmod,
-                        'priority'   => number_format($iPriority, 1),
-                        'changefreq' => $fq
+                        'title' => $this->ititle($item['ititle']),
+                        'link' => $this->_prepareLink($SelfURL, createItemLink($item_id)),
+                        'ror:updated' => gmdate('Y-m-d\TH:i:s', $itemTime) . $this->tz($item['timestamp']),
+                        'ror:updatePeriod' => 'day',
+                        'ror:sortOrder' => '0',
+                        'ror:resourceOf' => 'sitemap',
                     );
                 } else {
-                    if (strtoupper(_CHARSET) !== 'UTF-8') {
-                        $iTitle = mb_conbert_encoding($item['ititle'], 'UTF-8', _CHARSET);
-                    } else {
-                        $iTitle = $item['ititle'];
+                    $iPriority = (int)$this->getItemOption($item_id, 'itemPriority');
+                    if ($iPriority > 10) {
+                        $iPriority = 10;
                     }
+                    $iPriority = $iPriority / 10;
                     $sitemap[] = array(
-                        'title'            => $iTitle,
-                        'link'             => $itemLoc,
-                        'ror:updated'      => $lastmod,
-                        'ror:updatePeriod' => 'day',
-                        'ror:sortOrder'    => '0',
-                        'ror:resourceOf'   => 'sitemap',
+                        'loc' => $this->_prepareLink($SelfURL, createItemLink($item_id)),
+                        'lastmod' => gmdate('Y-m-d\TH:i:s', $itemTime) . $this->tz($item['timestamp']),
+                        'priority' => number_format($iPriority, 1),
+                        'changefreq' => $this->changefreq($itemTime)
                     );
                 }
             }
@@ -358,6 +332,7 @@ class NP_SEOSitemaps extends NucleusPlugin {
         }
 
         echo $sitemapHeader;
+
         if ($vfile_name === 'ror.xml') {
             echo $sitemapTitle;
         }
@@ -395,6 +370,32 @@ class NP_SEOSitemaps extends NucleusPlugin {
         exit;
     }
 
+    private function tz($timestamp) {
+        $tz = date('O', $timestamp);
+        return substr($tz, 0, 3) . ':' . substr($tz, 3, 2);
+    }
+
+    private function ititle($ititle) {
+        if (strtoupper(_CHARSET) === 'UTF-8') {
+            return $ititle;
+        }
+        return mb_conbert_encoding($ititle, 'UTF-8', _CHARSET);
+    }
+
+    private function changefreq($itemTime) {
+        if ($itemTime < strtotime('-1 month')) {
+            return 'monthly';
+        }
+        if ($itemTime < strtotime('-1 week')) {
+            return 'weekly';
+        }
+        if ($itemTime < strtotime('-1 day')) {
+            return 'daily';
+        }
+        return 'hourly';
+    }
+
+
     function pluginCheck($pluginName){
         global $manager;
         if (!$manager->pluginInstalled($pluginName)) {
@@ -419,7 +420,9 @@ class NP_SEOSitemaps extends NucleusPlugin {
         $b       =& $manager->getBlog($blog_id);
         $b_url   =  $b->getURL();
 
-        if (substr($b_url, -4) === '.php') $CONF['URLMode'] = 'normal';
+        if (substr($b_url, -4) === '.php') {
+            $CONF['URLMode'] = 'normal';
+        }
         $usePathInfo = ($CONF['URLMode'] === 'pathinfo');
 
         if (substr($b_url, -1) === '/') {
